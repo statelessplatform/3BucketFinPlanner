@@ -1,32 +1,6 @@
 'use strict';
 
-const HIST=[
-  {b2:.145,b3:-.147,ctx:'Tech Meltdown'},
-  {b2:.172,b3:-.162,ctx:'Post-9/11'},
-  {b2:.584,b3:.033,ctx:'Major Bull Run'},
-  {b2:.189,b3:.719,ctx:'Great Bull Run'},
-  {b2:.321,b3:.107,ctx:'Steady Growth'},
-  {b2:.357,b3:.363,ctx:'Infra Boom'},
-  {b2:.462,b3:.398,ctx:'Peak Bull Market'},
-  {b2:-.35,b3:.548,ctx:'Global Financial Crisis'},
-  {b2:.655,b3:-.518,ctx:'Post-Crisis Recovery'},
-  {b2:.151,b3:.713,ctx:'Consolidation'},
-  {b2:-.124,b3:.179,ctx:'Eurozone Crisis'},
-  {b2:.228,b3:-.246,ctx:'Policy Reforms'},
-  {b2:.084,b3:.277,ctx:'Taper Tantrum'},
-  {b2:.432,b3:.068,ctx:'Post-Election Rally'},
-  {b2:.015,b3:.314,ctx:'China Slowdown'},
-  {b2:.078,b3:-.041,ctx:'Demonetization'},
-  {b2:.279,b3:.030,ctx:'Broad Rally'},
-  {b2:-.031,b3:.286,ctx:'Mid-Cap Crash'},
-  {b2:.069,b3:.032,ctx:'Polarized Market'},
-  {b2:.076,b3:.120,ctx:'COVID Recovery'},
-  {b2:.264,b3:.149,ctx:'Post-Pandemic Surge'},
-  {b2:.188,b3:.241,ctx:'Rate Hike Resilience'},
-  {b2:.313,b3:.043,ctx:'Broad Participation'},
-  {b2:.167,b3:.194,ctx:'Steady Growth'},
-  {b2:.072,b3:.088,ctx:'Global Slowdown'},
-];
+/* Historical data removed — simulation uses flat user-input returns only */
 
 const SCEN={
   conservative:{b1:1.5,b2:5,b3:9,inf:8},
@@ -49,34 +23,65 @@ function human(n){
   return'₹'+Math.round(n).toLocaleString('en-IN');
 }
 
-/* ── SIMULATION ── */
+/* ── SIMULATION ENGINE ──────────────────────────────────
+   Uses user-entered flat return rates for B1, B2, B3.
+   No historical data sequence — pure input-driven model.
+
+   Refill logic (from spreadsheet Sheet 1):
+   • B1 target = (b1_term_months/12) × current annual draw
+   • B1 refill triggers when B1 balance < 50% of B1 target
+   • B2 tops up B1 to its full target; B2 is debited accordingly
+   • B2 target = (b2_term_months/12) × current annual draw
+   • B2 refill triggers when B2 balance (after any B1 funding) < 50% of B2 target
+   • B3 tops up B2 to its full target; B3 is debited accordingly
+─────────────────────────────────────────────────────── */
 function simulate(c){
-  const ann=c.mexp*12;
-  const b1i=(c.b1t/12)*ann;
-  const b2i=(c.b2t/12)*ann;
-  const b3i=Math.max(0,c.corp-b1i-b2i);
-  let b1=b1i,b2=b2i,b3=b3i;
-  const rows=[];
-  for(let y=1;y<=c.yrs;y++){
-    const draw=ann*Math.pow(1+c.inf,y-1);
-    const h=HIST[(y-1)%HIST.length];
-    b1=b1*(1+c.b1r)-draw;
-    let rf1=0;
-    if(b1<(c.b1t/12)*draw*.5&&b2>0){
-      const need=(c.b1t/12)*draw-b1;
-      rf1=Math.min(need,b2); b1+=rf1; b2-=rf1;
+  const ann = c.mexp * 12;
+  const b1i = (c.b1t / 12) * ann;
+  const b2i = (c.b2t / 12) * ann;
+  const b3i = Math.max(0, c.corp - b1i - b2i);
+  let b1 = b1i, b2 = b2i, b3 = b3i;
+  const rows = [];
+
+  for(let y = 1; y <= c.yrs; y++){
+    const draw = ann * Math.pow(1 + c.inf, y - 1);
+    const b1Target = (c.b1t / 12) * draw;
+    const b2Target = (c.b2t / 12) * draw;
+
+    // Each bucket earns its flat return on opening balance
+    b3 = b3 * (1 + c.b3r);
+    b2 = b2 * (1 + c.b2r);
+    b1 = b1 * (1 + c.b1r) - draw;
+
+    // B1 refill from B2: trigger when B1 drops below half its target
+    let rf1 = 0;
+    if(b1 < b1Target * 0.5){
+      rf1 = b1Target - b1;
+      rf1 = Math.min(rf1, Math.max(0, b2));
+      b1 += rf1; b2 -= rf1;
     }
-    b2=Math.max(0,b2)*(1+h.b2);
-    let rf2=0;
-    if(b2<(c.b2t/12)*draw*.5&&b3>0){
-      const need=(c.b2t/12)*draw-b2;
-      rf2=Math.min(need,b3); b2+=rf2; b3-=rf2;
+
+    // B2 refill from B3: trigger when B2 (after any B1 funding) drops below half its target
+    let rf2 = 0;
+    if(b2 < b2Target * 0.5){
+      rf2 = b2Target - b2;
+      rf2 = Math.min(rf2, Math.max(0, b3));
+      b2 += rf2; b3 -= rf2;
     }
-    b3=Math.max(0,b3)*(1+h.b3);
-    const r1=Math.max(0,b1),r2=Math.max(0,b2),r3=Math.max(0,b3);
-    rows.push({y,draw,b1:r1,b2:r2,b3:r3,tot:r1+r2+r3,rf1,rf2,r2:h.b2,r3:h.b3,ctx:h.ctx,crash:h.b3<-.1});
+
+    const r1 = Math.max(0, b1), r2 = Math.max(0, b2), r3 = Math.max(0, b3);
+    rows.push({
+      y, draw,
+      b1: r1, b2: r2, b3: r3,
+      tot: r1 + r2 + r3,
+      rf1, rf2,
+      // Store applied rates for display
+      appliedR2: c.b2r, appliedR3: c.b3r,
+      // Warn if any bucket depleted
+      b1depleted: b1 < 0, b2depleted: b2 < 0, b3depleted: b3 < 0,
+    });
   }
-  return{rows,b1i,b2i,b3i,ann};
+  return { rows, b1i, b2i, b3i, ann };
 }
 
 /* ── STATE ── */
@@ -211,14 +216,14 @@ function renderTable(rows){
   tb.innerHTML='';
   rows.forEach(r=>{
     const tr=document.createElement('tr');
-    if(r.crash)tr.className='cr';
-    const rfn=r.rf1>0||r.rf2>0?`<span class="rn">${r.rf1>0?'B2→B1 '+fmt(r.rf1):''}${r.rf2>0?' B3→B2 '+fmt(r.rf2):''}</span>`:'';
-    tr.innerHTML=`<td>Yr ${r.y}<br><span style="font-size:10px;color:#94A3B8">${r.ctx}</span></td>
+    if(r.b1depleted||r.b2depleted||r.b3depleted) tr.className='cr';
+    const rfn=r.rf1>0||r.rf2>0?`<span class="rn">${r.rf1>0?'↑B2→B1 '+fmt(r.rf1):''}${r.rf2>0?' ↑B3→B2 '+fmt(r.rf2):''}</span>`:'';
+    tr.innerHTML=`<td>Year ${r.y}</td>
       <td>${fmt(r.draw)}${rfn}</td>
       <td class="c1">${fmt(r.b1)}</td><td class="c2">${fmt(r.b2)}</td><td class="c3">${fmt(r.b3)}</td>
       <td><strong>${fmt(r.tot)}</strong></td>
-      <td class="${r.r2>=0?'p':'n'}">${pct(r.r2)}</td>
-      <td class="${r.r3>=0?'p':'n'}">${pct(r.r3)}</td>`;
+      <td class="p">${pct(r.appliedR2)}</td>
+      <td class="p">${pct(r.appliedR3)}</td>`;
     tb.appendChild(tr);
   });
 }
@@ -276,7 +281,7 @@ function renderInsights(r){
   const{rows,b1i,b2i,b3i}=r;
   const last=rows[rows.length-1];
   const init=b1i+b2i+b3i;
-  const crashes=rows.filter(x=>x.crash);
+  const crashes=[]; // removed historical crash detection
   const refills=rows.filter(x=>x.rf1>0||x.rf2>0);
   const drawn=rows.reduce((s,x)=>s+x.draw,0);
   const items=[
@@ -300,13 +305,15 @@ function renderInsights(r){
 /* ── RUN ── */
 function run(){
   const cfg={
-    mexp:parseFloat(inp.mexp.value)||500000,
-    corp:parseFloat(inp.corp.value)||120000000,
-    inf:(parseFloat(inp.infl.value)||7)/100,
-    b1t:parseFloat(inp.b1t.value)||24,
-    b2t:parseFloat(inp.b2t.value)||36,
-    b1r:(parseFloat(inp.b1r.value)||2)/100,
-    yrs:parseInt(inp.yrs.value)||25,
+    mexp: parseFloat(inp.mexp.value) || 500000,
+    corp: parseFloat(inp.corp.value) || 120000000,
+    inf:  (parseFloat(inp.infl.value) || 7)  / 100,
+    b1t:  parseFloat(inp.b1t.value)  || 24,
+    b2t:  parseFloat(inp.b2t.value)  || 36,
+    b1r:  (parseFloat(inp.b1r.value) || 2)  / 100,
+    b2r:  (parseFloat(inp.b2r.value) || 6)  / 100,
+    b3r:  (parseFloat(inp.b3r.value) || 11) / 100,
+    yrs:  parseInt(inp.yrs.value)    || 25,
   };
   res=simulate(cfg);
   renderKPIs(res);
