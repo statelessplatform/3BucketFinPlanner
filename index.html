@@ -95,7 +95,7 @@
     .ibox { display:flex; align-items:center; border:1.5px solid var(--bd); border-radius:7px; overflow:hidden; transition:border-color .12s; }
     .ibox:focus-within { border-color:var(--b1); box-shadow:0 0 0 3px rgba(37,99,235,.1); }
     .ipre { padding:0 7px; height:32px; background:var(--sf2); border-right:1px solid var(--bd); color:var(--ink3); font-size:12px; display:flex; align-items:center; }
-    .ibox input { width:100%; flex:1; min-width:0; border:none; outline:none; padding:0 8px; height:32px; font-family:var(--fn); font-size:13px; color:var(--ink); background:transparent; }
+    .ibox input { flex:1; min-width:0; border:none; outline:none; padding:0 8px; height:32px; font-family:var(--fn); font-size:13px; color:var(--ink); background:transparent; }
     .hint { font-size:10px; color:var(--ink4); margin-top:1px; }
 
     .sl-row { display:flex; align-items:center; gap:7px; margin-top:3px; }
@@ -585,8 +585,8 @@
               <th style="color:#0EA5E9">B2 Balance <span class="q" data-tip="Bucket 2 (Buffer Fund) end-of-year balance.">?</span></th>
               <th style="color:#10B981">B3 Balance <span class="q" data-tip="Bucket 3 (Equity) end-of-year balance.">?</span></th>
               <th>Total</th>
-              <th>B2 Ret <span class="q" data-tip="Actual return applied to B2 this year (historical data).">?</span></th>
-              <th>B3 Ret <span class="q" data-tip="Actual return applied to B3 this year (historical data).">?</span></th>
+              <th>B2 Return <span class="q" data-tip="Annual return rate applied to Bucket 2 — the flat % you entered in Bucket Settings.">?</span></th>
+              <th>B3 Return <span class="q" data-tip="Annual return rate applied to Bucket 3 — the flat % you entered in Bucket Settings.">?</span></th>
             </tr></thead>
             <tbody id="tbody"></tbody>
           </table>
@@ -605,7 +605,7 @@
 <!-- STATUSBAR -->
 <div id="bar">
   <span id="bar-msg">Simulation running…</span>
-  <span id="bar-disc">Educational tool only — not financial advice · Historical returns 2001–2026</span>
+  <span id="bar-disc">Educational tool only — not financial advice · Returns based on your inputs</span>
 </div>
 
 <script src="app.js"></script>
